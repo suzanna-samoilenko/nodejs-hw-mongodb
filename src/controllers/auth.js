@@ -16,19 +16,18 @@ export async function registerController(req, res) {
 }
 
 export async function loginController(req, res) {
-  const session = await loginUser(req.body.email, req.body.password);
-
-  res.cookie('sessionId', session._id, {
-    httpOnly: true,
-    expire: session.refreshTokenValidUntil,
-  });
+  const session = await loginUser(req.body);
 
   res.cookie('refreshToken', session.refreshToken, {
     httpOnly: true,
-    expire: session.refreshTokenValidUntil,
+    expires: new Date(Date.now() + 15 * 60 * 1000),
+  });
+  res.cookie('sessionId', session._id, {
+    httpOnly: true,
+    expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
   });
 
-  res.status(200).json({
+  res.json({
     status: 200,
     message: 'Successfully logged in an user!',
     data: {

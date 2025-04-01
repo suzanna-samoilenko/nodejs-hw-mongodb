@@ -2,6 +2,7 @@ import createHttpError from 'http-errors';
 import { User } from '../db/models/user.js';
 import bcrypt from 'bcrypt';
 import { Session } from '../db/models/session.js';
+import crypto from 'crypto';
 
 export async function registerUser(payload) {
   const user = await User.findOne({ email: payload.email });
@@ -15,18 +16,20 @@ export async function registerUser(payload) {
   return User.create(payload);
 }
 
-export async function loginUser(password, email) {
-  const user = await User.findOne({ email });
+export async function loginUser(payload) {
+  const user = await User.findOne({ email: payload.email });
 
-  if (user === null) {
-    throw createHttpError.Unauthorized('Email or password is incorrect');
+  if (!user) {
+    throw createHttpError(404, 'User not found');
   }
 
-  const isMatch = await bcrypt.compare(password, user.password);
+  const isMatch = await bcrypt.compare(payload.password, user.password);
 
   if (isMatch !== true) {
-    throw createHttpError.Unauthorized('Email or password is incorrect');
+    throw createHttpError(401, 'Unauthorized');
   }
+
+  console.log('User authenticated:', user._id);
 
   await Session.deleteOne({ userId: user._id });
 
