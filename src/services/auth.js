@@ -29,8 +29,6 @@ export async function loginUser(payload) {
     throw createHttpError(401, 'Unauthorized');
   }
 
-  console.log('User authenticated:', user._id);
-
   await Session.deleteOne({ userId: user._id });
 
   return await Session.create({
