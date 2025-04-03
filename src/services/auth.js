@@ -3,6 +3,7 @@ import { User } from '../db/models/user.js';
 import bcrypt from 'bcrypt';
 import { Session } from '../db/models/session.js';
 import crypto from 'crypto';
+import { sendEmail } from '../utils/sendEmail.js';
 
 export async function registerUser(payload) {
   const user = await User.findOne({ email: payload.email });
@@ -28,8 +29,6 @@ export async function loginUser(payload) {
   if (isMatch !== true) {
     throw createHttpError(401, 'Unauthorized');
   }
-
-  console.log('User authenticated:', user._id);
 
   await Session.deleteOne({ userId: user._id });
 
@@ -70,6 +69,16 @@ export async function refreshSession(sessionId, refreshToken) {
   });
 }
 
-export const logoutUser = async (sessionId) => {
+export async function logoutUser(sessionId) {
   await Session.deleteOne({ _id: sessionId });
-};
+}
+
+export async function resetPassword(email) {
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw createHttpError(404, 'User not found');
+  }
+
+  await sendEmail();
+}
