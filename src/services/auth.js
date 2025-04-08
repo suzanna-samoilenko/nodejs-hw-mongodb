@@ -1,11 +1,19 @@
+import * as fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+
 import createHttpError from 'http-errors';
-import { User } from '../db/models/user.js';
 import bcrypt from 'bcrypt';
-import { Session } from '../db/models/session.js';
-import crypto from 'crypto';
-import { sendEmail } from '../utils/sendEmail.js';
 import jwt from 'jsonwebtoken';
+import handlebars from 'handlebars';
+
+import { User } from '../db/models/user.js';
+import { Session } from '../db/models/session.js';
+import { sendEmail } from '../utils/sendEmail.js';
 import { getEnvVar } from '../utils/getEnvVar.js';
+import { promisify } from 'node:util';
+
+const TEMPLATES_DIR = path.join(process.cwd(), 'src', 'templates');
 
 export async function registerUser(payload) {
   const user = await User.findOne({ email: payload.email });
@@ -75,13 +83,11 @@ export async function logoutUser(sessionId) {
   await Session.deleteOne({ _id: sessionId });
 }
 
-export async function requestResetToken(email) {
+export const requestResetToken = async (email) => {
   const user = await User.findOne({ email });
-
   if (!user) {
     throw createHttpError(404, 'User not found');
   }
-
   const resetToken = jwt.sign(
     {
       sub: user._id,
@@ -89,29 +95,40 @@ export async function requestResetToken(email) {
     },
     getEnvVar('JWT_SECRET'),
     {
-      expiresIn: '15m',
+      expiresIn: '5m',
     },
   );
 
-  const resetLink = `${getEnvVar(
-    'APP_DOMAIN',
-  )}/reset-password?token=${resetToken}`;
+  const resetPasswordTemplatePath = path.join(
+    TEMPLATES_DIR,
+    'reset-password-email.html',
+  );
+
+  const readFileAsync = promisify(fs.readFile);
+  const templateSource = await readFileAsync(resetPasswordTemplatePath, 'utf8');
+
+  const template = handlebars.compile(templateSource);
+  const html = template({
+    name: user.name,
+    link: `${getEnvVar('APP_DOMAIN')}/reset-password?token=${resetToken}`,
+  });
 
   try {
     await sendEmail({
       from: getEnvVar('SMTP_FROM'),
       to: email,
       subject: 'Reset your password',
-      html: `<p>Click <a href="${resetLink}">here</a> to reset your password!</p>`,
+      html,
     });
   } catch (error) {
-    console.error('❌ Error sending email:', error);
+    console.error(error);
+
     throw createHttpError(
       500,
       'Failed to send the email, please try again later.',
     );
   }
-}
+};
 
 export async function resetPassword(token, newPassword) {
   try {
@@ -125,16 +142,17 @@ export async function resetPassword(token, newPassword) {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    await User.findByIdAndUpdate(user._id, { password: hashedPassword });
+    await User.findByIdAndUpdate(user._id, {
+      password: hashedPassword,
+      refreshToken: null,
+    });
   } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
+    if (
+      error.name === 'JsonWebTokenError' ||
+      error.name === 'TokenExpiredError'
+    ) {
       throw createHttpError.Unauthorized('Token is expired or invalid.');
     }
-
-    if (error.name === 'TokenExpiredError') {
-      throw createHttpError.Unauthorized('Token is expired or invalid.');
-    }
-
     throw error;
   }
 }
