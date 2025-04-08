@@ -8,6 +8,9 @@ import {
 import createHttpError from 'http-errors';
 import { parsePaginationParams } from '../utils/parsePaginationParams.js';
 import { parseSortParams } from '../utils/parseSortParams.js';
+import { saveFileToUploadDir } from '../utils/saveFileToUploadDir.js';
+import { getEnvVar } from '../utils/getEnvVar.js';
+import { saveFileToCloudinary } from '../utils/saveFileToCloudinary.js';
 
 export async function getContactsController(req, res) {
   const { page, perPage } = parsePaginationParams(req.query);
@@ -47,10 +50,22 @@ export async function getContactController(req, res) {
   });
 }
 
-export async function createContactController(req, res) {
+export async function createContactController(req, res, next) {
+  const photo = req.file;
+  let photoUrl;
+
+  if (photo) {
+    if (getEnvVar('ENABLE_CLOUDINARY') === 'true') {
+      photoUrl = await saveFileToCloudinary(photo);
+    } else {
+      photoUrl = await saveFileToUploadDir(photo);
+    }
+  }
+
   const contact = {
     ...req.body,
     userId: req.user.id,
+    ...(photoUrl && { photo: photoUrl }),
   };
 
   const result = await createContact(contact);
@@ -62,8 +77,9 @@ export async function createContactController(req, res) {
   });
 }
 
-export async function updateContactController(req, res, next) {
+export async function updateContactController(req, res) {
   const { contactId } = req.params;
+
   const contact = await updateContact(contactId, req.body);
 
   if (!contact) {
@@ -74,10 +90,30 @@ export async function updateContactController(req, res, next) {
     throw createHttpError(404, 'Contact not found');
   }
 
+  const photo = req.file;
+  let photoUrl;
+
+  if (photo) {
+    if (getEnvVar('ENABLE_CLOUDINARY') === 'true') {
+      photoUrl = await saveFileToCloudinary(photo);
+    } else {
+      photoUrl = await saveFileToUploadDir(photo);
+    }
+  }
+
+  const updatedContact = await updateContact(contactId, {
+    ...req.body,
+    ...(photoUrl && { photo: photoUrl }),
+  });
+
+  if (!updatedContact) {
+    throw createHttpError(404, 'Contact not found');
+  }
+
   res.status(200).json({
     status: 200,
     message: 'Successfully patched a contact!',
-    data: contact,
+    data: updatedContact,
   });
 }
 
