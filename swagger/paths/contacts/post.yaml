@@ -61,11 +61,7 @@ responses:
               type: string
               example: Contact created successfully!
             data:
-              type: object
-              $ref: ../../../components/schemas/contact.yaml
+              type:
+              $ref: ../../components/schemas/contact.yaml
   '401':
-    $ref: ../../../components/responses/401.yaml
-  '404':
-    $ref: ../../../components/responses/404.yaml
-  '500':
-    $ref: ../../../components/responses/500.yaml
+    $ref: '../../components/responses/401.yaml'
