@@ -28,6 +28,12 @@ parameters:
       example: 'desc'
       default: 'asc'
     description: 'Sort order'
+  - in: query
+    name: sortBy
+    schema:
+      type: string
+      example: 'name'
+    description: 'Field by which to sort contacts (e.g., name, email, phoneNumber)'
 
 responses:
   '200':
@@ -82,3 +88,5 @@ responses:
                   example: true
   '401':
     $ref: '../../components/responses/401.yaml'
+  '500':
+    $ref: '../../components/responses/500.yaml'
